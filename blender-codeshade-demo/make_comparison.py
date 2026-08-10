@@ -4,31 +4,54 @@
             renders/plastic_glass_cycles.png renders/plastic_glass_eevee.png \
             renders/comparison.png
 
-Uses Blender's own image API and its bundled numpy, so the demo still needs no
-third-party packages. Images are read as Non-Color so the pixel values pass
-through untouched -- this is a composite, not a re-grade.
+Uses Blender's own image API, so the demo still needs no third-party packages.
+numpy is used when present -- official Blender builds bundle it, but distro
+packages run against a system Python that may not have it, so there is a plain
+``array``-based path too.
+
+Images are read as Non-Color so the pixel values pass through untouched: this
+is a composite, not a re-grade.
 """
 
 from __future__ import annotations
 
 import os
 import sys
+from array import array
 
 import bpy
-import numpy as np
 
 DIVIDER_PX = 4
 DIVIDER_RGBA = (0.05, 0.05, 0.06, 1.0)
 
 
 def load_pixels(path):
+    """Return (flat float buffer, width, height) for an image on disk."""
     image = bpy.data.images.load(path, check_existing=False)
     image.colorspace_settings.name = "Non-Color"
     width, height = image.size
-    buffer = np.empty(width * height * 4, dtype=np.float32)
+    buffer = array("f", [0.0]) * (width * height * 4)
     image.pixels.foreach_get(buffer)
     bpy.data.images.remove(image)
-    return buffer.reshape(height, width, 4)
+    return buffer, width, height
+
+
+def stitch(left, right, width, height):
+    """Concatenate two equal-sized frames left-to-right with a divider bar.
+
+    Pixels are a flat RGBA float run in bottom-up row order, so joining two
+    images side by side is a per-row splice.
+    """
+    divider = array("f", DIVIDER_RGBA * DIVIDER_PX)
+    row_floats = width * 4
+    out = array("f")
+    for row in range(height):
+        start = row * row_floats
+        stop = start + row_floats
+        out.extend(left[start:stop])
+        out.extend(divider)
+        out.extend(right[start:stop])
+    return out, width * 2 + DIVIDER_PX
 
 
 def main():
@@ -37,25 +60,24 @@ def main():
         raise SystemExit("usage: ... -- <left.png> <right.png> <out.png>")
     left_path, right_path, out_path = argv
 
-    left = load_pixels(left_path)
-    right = load_pixels(right_path)
-    if left.shape != right.shape:
-        raise SystemExit(f"size mismatch: {left.shape} vs {right.shape}")
+    left, width, height = load_pixels(left_path)
+    right, right_width, right_height = load_pixels(right_path)
+    if (width, height) != (right_width, right_height):
+        raise SystemExit(
+            f"size mismatch: {width}x{height} vs {right_width}x{right_height}"
+        )
 
-    height = left.shape[0]
-    divider = np.tile(np.array(DIVIDER_RGBA, dtype=np.float32), (height, DIVIDER_PX, 1))
-    combined = np.concatenate([left, divider, right], axis=1)
+    combined, out_width = stitch(left, right, width, height)
 
-    out_height, out_width = combined.shape[:2]
-    result = bpy.data.images.new("comparison", width=out_width, height=out_height,
+    result = bpy.data.images.new("comparison", width=out_width, height=height,
                                  alpha=True, float_buffer=False)
     result.colorspace_settings.name = "Non-Color"
-    result.pixels.foreach_set(combined.reshape(-1))
+    result.pixels.foreach_set(combined)
 
     result.filepath_raw = os.path.abspath(out_path)
     result.file_format = "PNG"
     result.save()
-    print(f"[codeshade] wrote {out_path}  ({out_width}x{out_height})")
+    print(f"[codeshade] wrote {out_path}  ({out_width}x{height})")
 
 
 if __name__ == "__main__":

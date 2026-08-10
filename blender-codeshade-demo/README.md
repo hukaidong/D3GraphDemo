@@ -134,11 +134,22 @@ identical scene with both engines so you can see where the line falls:
 | Tinted glass (volume absorption) | green, deeper where thicker | tint ignored — reads as chrome |
 | Frosted glass | correct rough transmission | approximated |
 | Caustics on the floor | yes | none |
-| Time (1280×720, this 4-core box) | minutes | seconds |
+| Time (1280×720, 4-core CPU, software GL) | 318 s @ 384 spp | 111 s @ 128 spp |
 
 ![Cycles vs EEVEE](renders/comparison.png)
 
 *Same scene, same materials, same lights. Left: Cycles. Right: EEVEE.*
+
+The three plastics are indistinguishable between the two. The glass is not:
+
+- **Sphere** — Cycles inverts the checker through it and bends the red cube
+  behind it. EEVEE shows the cube nearly straight through, as if the sphere
+  were a flat window.
+- **Cone** — Cycles absorbs along the path, so it is pale at the tip and
+  saturated through the thick base. EEVEE drops the volume entirely and the
+  cone renders as untinted chrome.
+- **Torus** — Cycles scatters transmitted light and drops a caustic on the
+  floor. EEVEE gives it a metallic sheen and no caustic anywhere.
 
 Why the split: plastic is an opaque surface, so its shading depends only on the
 lights and the surface itself — a rasteriser evaluates that exactly. Glass is
@@ -152,7 +163,10 @@ entirely — which is why the tinted cone loses its colour.
 
 So the practical answer:
 
-- Plastic-only pipeline → EEVEE is fine and 10–100× faster.
+- Plastic-only pipeline → EEVEE is fine, and much faster. The 2.9× measured
+  above understates it badly: this box has no GPU, so EEVEE was rasterising
+  through llvmpipe. On real hardware EEVEE is typically orders of magnitude
+  ahead, which is the whole reason to reach for it.
 - Anything glass, and especially anything with caustics or coloured/thick
   glass → use Cycles.
 - EEVEE Next (Blender 4.2+) narrows the gap with real screen-space ray tracing
