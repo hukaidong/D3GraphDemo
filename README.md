@@ -1,4 +1,30 @@
-# Sparse graph plotting demo with D3.js
+# Demos
 
-Result:
-![result](https://github.com/ccdd9451/D3GraphDemo/blob/master/Assets/result.JPG)
+A collection of small, self-contained demos, kept in one repository rather than
+scattered across several. Each demo lives in its own top-level folder with its
+own README and its own dependencies; nothing is shared between them.
+
+| Demo | What it shows |
+| --- | --- |
+| [`blender-codeshade-demo/`](blender-codeshade-demo/) | Headless Blender rendering: plastic and glass materials on primitives, with shader node graphs, lighting and render settings built entirely in Python. Includes a Cycles vs EEVEE comparison of what ray tracing actually buys you. |
+| [D3 sparse graph](#d3-sparse-graph-plotting) (repository root) | The original demo — sparse graph plotting with D3.js. |
+
+## D3 sparse graph plotting
+
+Sparse graph plotting with D3.js, served as a static page.
+
+![result](Assets/result.JPG)
+
+```bash
+docker build -t d3demo .
+docker run --rm -v "$PWD:/data" -p 8080:8080 d3demo http-server
+# then open http://localhost:8080
+```
+
+`GraphGen.ipynb` generates `graph.json`; `plot.js` and `index.html` render it.
+
+## Adding a demo
+
+Create a top-level folder, put a `README.md` in it explaining how to run it, and
+add a row to the table above. Keep each demo's dependencies inside its own
+folder so the demos stay independent.
