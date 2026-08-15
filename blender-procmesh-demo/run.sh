@@ -4,6 +4,10 @@
 #   ./run.sh                    # all three shots, 1600x900
 #   ./run.sh --samples 400      # any render_demo.py flag passes straight through
 #   ./run.sh --shot hero        # just the hero render
+#   ./run.sh --no-project       # skip the .blend projects
+#
+# PNGs land in renders/; a .blend project per shot, with that shot's finished
+# render packed inside it, lands in example/ once the render completes.
 #
 # Set BLENDER=/path/to/blender if it is not on PATH.
 set -euo pipefail

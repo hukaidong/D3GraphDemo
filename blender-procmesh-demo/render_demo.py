@@ -26,7 +26,9 @@ import detail as detail_levels  # noqa: E402
 import scene as scene_builder  # noqa: E402
 import toolbox  # noqa: E402
 
-DEFAULT_OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "renders")
+HERE = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_OUT = os.path.join(HERE, "renders")
+DEFAULT_PROJECT = os.path.join(HERE, "example")
 SHOTS = ("ladder", "hero", "toolbox")
 
 
@@ -45,11 +47,14 @@ def parse_args(argv):
     parser.add_argument("--samples", type=int, default=160)
     parser.add_argument("--width", type=int, default=1600)
     parser.add_argument("--height", type=int, default=900)
-    parser.add_argument("--out", default=DEFAULT_OUT)
+    parser.add_argument("--out", default=DEFAULT_OUT,
+                        help="where the rendered PNGs go (default: renders/)")
+    parser.add_argument("--project-dir", default=DEFAULT_PROJECT,
+                        help="where the .blend projects go (default: example/)")
+    parser.add_argument("--no-project", dest="project", action="store_false",
+                        help="render only; do not write a .blend project")
     parser.add_argument("--threads", type=int, default=0)
     parser.add_argument("--exposure", type=float, default=0.0)
-    parser.add_argument("--save-blend", action="store_true",
-                        help="also write a .blend you can open in the GUI")
     parser.add_argument("--stats", action="store_true",
                         help="print the topology table and exit without rendering")
     parser.add_argument("--dump-scatter", action="store_true",
@@ -147,6 +152,36 @@ def render_to(scene, filepath):
     return elapsed
 
 
+def save_project(shot, image_path, project_dir):
+    """Write a .blend for this shot with the finished render packed inside it.
+
+    This runs *after* the render, and has to. Blender's render output lives in
+    a special "Render Result" image that is a temporary buffer -- it is never
+    written into a .blend, so a project saved before or during the render
+    contains the scene but no picture. Loading back the PNG that was just
+    written and packing it is what makes the project self-contained: open it on
+    another machine, with no ``renders/`` folder next to it, and the finished
+    frame is still there in the Image editor beside the scene that produced it.
+
+    ``use_fake_user`` is the other half of that. Nothing in the scene
+    references this image, and Blender drops unreferenced datablocks on save
+    unless something claims them -- so without it the pack silently achieves
+    nothing.
+    """
+    os.makedirs(project_dir, exist_ok=True)
+
+    image = bpy.data.images.load(image_path, check_existing=True)
+    image.name = f"render_{shot}"
+    image.pack()
+    image.use_fake_user = True
+
+    blend_path = os.path.join(project_dir, f"{shot}.blend")
+    bpy.ops.wm.save_as_mainfile(filepath=blend_path, compress=True)
+    size_mb = os.path.getsize(blend_path) / (1024 * 1024)
+    print(f"[procmesh] wrote {blend_path}  ({size_mb:.1f} MB, render packed in)")
+    return blend_path
+
+
 def print_stats():
     """The topology table: one model, three densities, measured not guessed.
 
@@ -200,12 +235,12 @@ def main():
 
         configure_output(scene, args.width, args.height, args.exposure)
         configure_cycles(scene, args.samples, args.threads, denoise=args.denoise)
-        render_to(scene, os.path.join(args.out, f"{shot}.png"))
 
-        if args.save_blend:
-            blend = os.path.join(args.out, f"{shot}.blend")
-            bpy.ops.wm.save_as_mainfile(filepath=blend)
-            print(f"[procmesh] wrote {blend}")
+        image_path = os.path.join(args.out, f"{shot}.png")
+        render_to(scene, image_path)
+
+        if args.project:
+            save_project(shot, image_path, args.project_dir)
 
 
 if __name__ == "__main__":

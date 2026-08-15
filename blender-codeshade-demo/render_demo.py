@@ -26,7 +26,9 @@ import scene as scene_builder  # noqa: E402
 from shadergraph import describe  # noqa: E402
 
 
-DEFAULT_OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "renders")
+HERE = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_OUT = os.path.join(HERE, "renders")
+DEFAULT_PROJECT = os.path.join(HERE, "example")
 
 
 def parse_args(argv):
@@ -46,10 +48,13 @@ def parse_args(argv):
                         help="Cycles samples / EEVEE TAA samples (default: 128)")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
-    parser.add_argument("--out", default=DEFAULT_OUT, help="output directory")
+    parser.add_argument("--out", default=DEFAULT_OUT,
+                        help="where the rendered PNGs go (default: renders/)")
+    parser.add_argument("--project-dir", default=DEFAULT_PROJECT,
+                        help="where the .blend project goes (default: example/)")
     parser.add_argument("--prefix", default="plastic_glass")
-    parser.add_argument("--save-blend", action="store_true",
-                        help="also write a .blend you can open in the GUI")
+    parser.add_argument("--no-project", dest="project", action="store_false",
+                        help="render only; do not write a .blend project")
     parser.add_argument("--dump-graphs", action="store_true",
                         help="print every material's node tree as text")
     parser.add_argument("--threads", type=int, default=0,
@@ -223,6 +228,36 @@ def render_to(scene, filepath):
     return elapsed
 
 
+def save_project(image_paths, project_dir, prefix):
+    """Write the .blend once the renders are done, with them packed inside.
+
+    This runs *after* rendering, and has to. Blender's output lives in a
+    special "Render Result" image that is a temporary buffer and is never
+    written into a .blend, so a project saved before the render contains the
+    materials and the lights but no picture. Loading back the PNGs that were
+    just written and packing them makes the project self-contained -- open it
+    anywhere, with no ``renders/`` folder beside it, and both engine renders
+    are in the Image editor next to the node graphs that produced them.
+
+    ``use_fake_user`` is the other half: nothing in the scene references these
+    images, and Blender drops unreferenced datablocks on save unless something
+    claims them, so without it the pack silently achieves nothing.
+    """
+    os.makedirs(project_dir, exist_ok=True)
+
+    for path in image_paths:
+        image = bpy.data.images.load(path, check_existing=True)
+        image.name = f"render_{os.path.splitext(os.path.basename(path))[0]}"
+        image.pack()
+        image.use_fake_user = True
+
+    blend_path = os.path.join(project_dir, f"{prefix}.blend")
+    bpy.ops.wm.save_as_mainfile(filepath=blend_path, compress=True)
+    size_mb = os.path.getsize(blend_path) / (1024 * 1024)
+    print(f"[codeshade] wrote {blend_path}  ({size_mb:.1f} MB, renders packed in)")
+    return blend_path
+
+
 def dump_graphs():
     print("\n" + "=" * 72)
     print("Material node trees (the same data the shader editor would show)")
@@ -248,17 +283,18 @@ def main():
         dump_graphs()
 
     targets = ["cycles", "eevee"] if args.engine == "both" else [args.engine]
+    rendered = []
     for engine in targets:
         if engine == "cycles":
             configure_cycles(scene, args.samples, args.threads, denoise=args.denoise)
         else:
             configure_eevee(scene, args.samples)
-        render_to(scene, os.path.join(args.out, f"{args.prefix}_{engine}.png"))
+        image_path = os.path.join(args.out, f"{args.prefix}_{engine}.png")
+        render_to(scene, image_path)
+        rendered.append(image_path)
 
-    if args.save_blend:
-        blend_path = os.path.join(args.out, f"{args.prefix}.blend")
-        bpy.ops.wm.save_as_mainfile(filepath=blend_path)
-        print(f"[codeshade] wrote {blend_path}")
+    if args.project:
+        save_project(rendered, args.project_dir, args.prefix)
 
 
 if __name__ == "__main__":

@@ -22,8 +22,15 @@ blender --background --factory-startup --python render_demo.py -- --stats
 blender --background --factory-startup --python render_demo.py -- --dump-scatter
 ```
 
-Output lands in `renders/`. Set `BLENDER=/path/to/blender` if it isn't on
-`PATH`. `--stats` prints the topology table without rendering anything.
+Rendered PNGs land in `renders/`. Once a shot finishes rendering, its scene is
+also saved as a Blender project in `example/` — one `.blend` per shot, with
+that shot's finished render **packed inside it**, so the project opens
+anywhere with the picture already in the Image editor next to the scene that
+produced it. `example/` is generated output and is gitignored; `--no-project`
+skips it and `--project-dir` moves it.
+
+Set `BLENDER=/path/to/blender` if it isn't on `PATH`. `--stats` prints the
+topology table without rendering anything.
 
 ## The question this demo answers
 
@@ -256,6 +263,7 @@ and are also less interesting than what the brush would have produced.
 | `toolbox.py` | The twelve-operation sheet |
 | `render_demo.py` | CLI entry point: engine setup, stats, render |
 | `run.sh` | Wrapper — all three shots |
+| `example/` | Generated `.blend` projects, one per shot, render packed in (gitignored) |
 
 ## Notes and gotchas
 
@@ -321,6 +329,13 @@ no GPU. Cycles is pure CPU, so none of this needs a graphics context at all.
   reproducible once the mesh it is cutting is dense enough for the
   near-coincident cases to be decided differently. If you want to assert poly
   counts in CI, assert a tolerance rather than a number.
+- **A .blend never contains the render.** Blender's output lives in a special
+  `Render Result` image that is a temporary viewer buffer — save a project and
+  it comes back 0×0 and empty. Getting the finished frame into the project
+  means loading the PNG back off disk after rendering and calling
+  `image.pack()`. And packing alone is not enough: nothing in the scene
+  references that image, and Blender drops unreferenced datablocks on save, so
+  it needs `use_fake_user = True` or the pack silently achieves nothing.
 - **No denoiser in this build.** Distro packages are frequently compiled
   without OpenImageDenoise; `configure_denoising` detects the empty enum and
   says so rather than failing at render time. The renders here compensate with
