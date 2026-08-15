@@ -7,6 +7,7 @@ own README and its own dependencies; nothing is shared between them.
 | Demo | What it shows |
 | --- | --- |
 | [`blender-codeshade-demo/`](blender-codeshade-demo/) | Headless Blender rendering: plastic and glass materials on primitives, with shader node graphs, lighting and render settings built entirely in Python. Includes a Cycles vs EEVEE comparison of what ray tracing actually buys you. |
+| [`blender-procmesh-demo/`](blender-procmesh-demo/) | Headless Blender *modelling*: a lighthouse and the rock it stands on, built from profiles, lathes, booleans and noise functions rather than by hand. One definition rendered low-poly and refined, a sheet of the twelve modelling operations, and an honest account of where a GUI modeller is still the better tool. |
 | [D3 sparse graph](#d3-sparse-graph-plotting) (repository root) | The original demo — sparse graph plotting with D3.js. |
 
 ## D3 sparse graph plotting

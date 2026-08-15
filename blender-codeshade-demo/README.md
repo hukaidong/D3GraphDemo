@@ -12,7 +12,7 @@ textured plastic. Front row: clear, tinted and frosted glass.*
 ## Quick start
 
 ```bash
-# both engines, 1280x720, saves a .blend too
+# both engines, 1280x720; also saves a .blend project
 ./run.sh
 
 # or drive it directly
@@ -23,7 +23,12 @@ blender --background --factory-startup --python render_demo.py -- \
 blender --background --factory-startup --python dump_graphs.py
 ```
 
-Output lands in `renders/`. Set `BLENDER=/path/to/blender` if it isn't on
+Rendered PNGs land in `renders/`. Once rendering finishes, the scene is also
+saved as a Blender project in `example/`, with the finished renders **packed
+inside it** — so the project opens anywhere with the pictures already in the
+Image editor next to the node graphs that produced them. `example/` is
+generated output and is gitignored; `--no-project` skips it and
+`--project-dir` moves it. Set `BLENDER=/path/to/blender` if it isn't on
 `PATH`. Nothing is downloaded at runtime — the environment is a procedural
 gradient, not an HDRI file, so the demo is self-contained.
 
@@ -195,7 +200,8 @@ glass object needs several just to get out the other side.
 | `render_demo.py` | CLI entry point: engine setup, colour management, render |
 | `dump_graphs.py` | Print node trees as text, no render |
 | `make_comparison.py` | Stitch the two engine renders into one side-by-side PNG |
-| `run.sh` | Wrapper — both engines, saves a `.blend` |
+| `run.sh` | Wrapper — both engines, saves a `.blend` project |
+| `example/` | Generated `.blend` project with the renders packed in (gitignored) |
 
 ## The materials
 
@@ -247,6 +253,14 @@ Verified against **Blender 4.0.2** on a headless Linux container.
 - **Checker scale is in squares per unit of object space.** The floor plane is
   60 units across, so its object coordinates span ±30 and a scale of 14 gives
   invisibly fine squares. 1.2 gives readable ones.
+
+- **A .blend never contains the render.** Blender's output lives in a special
+  `Render Result` image that is a temporary viewer buffer — save a project and
+  it comes back 0×0 and empty. Getting the finished frames into the project
+  means loading the PNGs back off disk after rendering and calling
+  `image.pack()`, and then `use_fake_user = True`, because nothing in the
+  scene references those images and Blender drops unreferenced datablocks on
+  save.
 
 The EEVEE image here was produced on software OpenGL (llvmpipe), which also
 logged a shader link warning (`unresolved reference to 'F0_from_ior'`). The
